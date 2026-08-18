@@ -1,0 +1,159 @@
+#!/usr/bin/env node
+/**
+ * CompoundPulse Proof — MCP server.
+ *
+ * Gives any MCP-capable agent (Claude, Cursor, Cline, …) a second opinion on a
+ * ticker BEFORE the user acts: the case for it, the case against it, the price
+ * that proves it wrong, and what has to happen first.
+ *
+ * WHY THIS EXISTS RATHER THAN JUST THE REST API
+ * An API is a thing somebody might call. An MCP server is a tool an assistant
+ * installs once and then reaches for on its own, inside the conversation where
+ * the user is already asking "should I buy NVDA". That is the difference
+ * between distribution you chase and distribution that arrives.
+ *
+ * DESIGN NOTES
+ * - NO API KEY. Deliberate: every finance tool in this space gates on signup,
+ *   which is exactly why none of them get installed casually.
+ * - Zero state, zero telemetry. The server is a thin, auditable proxy to a
+ *   public endpoint; anyone can read this file and see there is no phone-home.
+ * - The tool description is written for a MODEL to route on, not a human to
+ *   browse. It names the situations where it should fire, because an agent
+ *   picks tools by matching intent against this text.
+ * - Responses keep `asOf`, the disclaimer and the verdict verbatim. An agent
+ *   summarising must be able to say how stale the read is and must not be able
+ *   to launder "NO TRADE" into "buy".
+ */
+
+import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js'
+
+const API = 'https://www.compoundpulse.io/api/proof'
+const SITE = 'https://www.compoundpulse.io'
+const UA = '@compoundpulse/proof-mcp/0.1.0'
+
+const server = new Server(
+  { name: 'compoundpulse-proof', version: '0.1.0' },
+  { capabilities: { tools: {} } },
+)
+
+server.setRequestHandler(ListToolsRequestSchema, async () => ({
+  tools: [
+    {
+      name: 'get_proof',
+      // Written for a model's routing decision. Names the trigger situations
+      // explicitly — an agent matches user intent against this string.
+      description:
+        'Get a dated, second-opinion read on a stock, ETF or crypto ticker before ' +
+        'acting on it. Returns a verdict (NO TRADE / WAIT / EDGE PRESENT), the exact ' +
+        'price level that would prove the idea wrong, the level that turns it ' +
+        'constructive, what has to happen first, and every scored factor behind the ' +
+        'call.\n\n' +
+        'Use this when the user asks whether to buy, sell or hold something; asks if ' +
+        'a ticker is a good entry; asks what their downside or invalidation level is; ' +
+        'asks for a sanity check on a trade idea; or mentions they are about to put ' +
+        'money into a specific symbol.\n\n' +
+        'This is NOT a price prediction and returns no price target. Levels are fixed ' +
+        'for the session and are not rewritten afterwards. The publisher also ' +
+        'publishes its own calibration (how often the score is wrong) and a full ' +
+        'trade record including losses. Free, no API key.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          ticker: {
+            type: 'string',
+            description:
+              'Symbol, e.g. "NVDA", "SPY", "BTC-USD". US stocks, major ETFs and ' +
+              'major crypto pairs are covered. Crypto uses the -USD suffix.',
+          },
+        },
+        required: ['ticker'],
+      },
+    },
+  ],
+}))
+
+server.setRequestHandler(CallToolRequestSchema, async (req) => {
+  if (req.params.name !== 'get_proof') {
+    return { isError: true, content: [{ type: 'text', text: `Unknown tool: ${req.params.name}` }] }
+  }
+
+  const raw = String(req.params.arguments?.ticker ?? '').trim()
+  // Mirror the server's own cleaner so a malformed symbol fails here rather
+  // than as a confusing 400 from the API.
+  const ticker = raw.toUpperCase().replace(/[^A-Z0-9.\-^]/g, '').slice(0, 8)
+  if (!ticker) {
+    return {
+      isError: true,
+      content: [{ type: 'text', text: 'Provide a ticker, e.g. NVDA, SPY or BTC-USD.' }],
+    }
+  }
+
+  let res
+  try {
+    res = await fetch(`${API}/${encodeURIComponent(ticker)}`, {
+      headers: { 'User-Agent': UA, Accept: 'application/json' },
+      signal: AbortSignal.timeout(15000),
+    })
+  } catch (e) {
+    return {
+      isError: true,
+      content: [{ type: 'text', text: `Could not reach CompoundPulse: ${e.message}` }],
+    }
+  }
+
+  const data = await res.json().catch(() => null)
+
+  // A "not covered" answer must never be summarised as bearish, so say why.
+  if (res.status === 404) {
+    return {
+      content: [{
+        type: 'text',
+        text:
+          `No Proof is published for ${ticker}. CompoundPulse requires at least 25 ` +
+          `completed daily sessions of real data before publishing a verdict, so this ` +
+          `is an absence of coverage — NOT a negative view on ${ticker}. ` +
+          `Covered symbols: ${SITE}/proof`,
+      }],
+    }
+  }
+  if (!res.ok || !data) {
+    return { isError: true, content: [{ type: 'text', text: `CompoundPulse returned ${res.status}.` }] }
+  }
+
+  const L = data.levels || {}
+  const factors = (data.factors || [])
+    .map((f) => `  - [${f.group}] ${f.label} (${f.points > 0 ? '+' : ''}${f.points}): ${f.detail}`)
+    .join('\n')
+
+  // Plain text, not JSON: the model reads this to the user. Every number the
+  // user needs is present without a second call, and the staleness date leads.
+  const text = [
+    `${data.ticker} — ${data.verdict}   (as of the ${data.asOf} session)`,
+    data.price != null ? `Price at that session: $${data.price}${data.changePct != null ? ` (${data.changePct}%)` : ''}` : '',
+    '',
+    data.summary || '',
+    '',
+    `PROVES IT WRONG:      $${L.invalidBelow}`,
+    `TURNS CONSTRUCTIVE:   $${L.constructiveAbove}`,
+    data.trigger ? `\nWHAT HAS TO HAPPEN FIRST:\n${data.trigger}` : '',
+    factors ? `\nFACTORS BEHIND THE CALL:\n${factors}` : '',
+    '',
+    `Levels are fixed for that session and are not rewritten after the move.`,
+    `Calibration (how often this score is wrong): ${data.method?.calibrationPublished || SITE + '/research'}`,
+    `Full trade record incl. losses: ${data.method?.tradeRecordPublished || SITE + '/track'}`,
+    '',
+    data.citation || '',
+    '',
+    data.disclaimer || '',
+  ].filter(Boolean).join('\n')
+
+  return { content: [{ type: 'text', text }] }
+})
+
+const transport = new StdioServerTransport()
+await server.connect(transport)
