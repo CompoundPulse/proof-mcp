@@ -32,9 +32,8 @@ cd ~/Desktop/proof-mcp
 npm publish --access public
 ```
 
-`--access public` is required: scoped packages (`@compoundpulse/…`) default to
-restricted, and a restricted package makes every `npx` in every listing below
-fail. Verify before submitting anything:
+Published as the UNSCOPED `proof-mcp` — the @compoundpulse scope did not
+exist on npm, and the short name is better in every listing anyway. Verify before submitting anything:
 
 ```bash
 npx -y proof-mcp   # should start and wait on stdin
