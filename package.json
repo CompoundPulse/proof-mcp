@@ -4,11 +4,34 @@
   "description": "Second opinion on any ticker before you act: the case for it, the case against it, and the price that proves it wrong. Free, no API key.",
   "license": "MIT",
   "type": "module",
-  "bin": { "proof-mcp": "./src/index.js" },
-  "files": ["src", "README.md"],
-  "keywords": ["mcp", "modelcontextprotocol", "stocks", "trading", "finance", "etf", "crypto", "ticker", "analysis"],
-  "engines": { "node": ">=18" },
-  "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0" },
-  "repository": { "type": "git", "url": "https://github.com/CompoundPulse/proof-mcp" },
+  "bin": {
+    "proof-mcp": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "mcp",
+    "modelcontextprotocol",
+    "stocks",
+    "trading",
+    "finance",
+    "etf",
+    "crypto",
+    "ticker",
+    "analysis"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CompoundPulse/proof-mcp"
+  },
   "homepage": "https://www.compoundpulse.io/proof"
 }

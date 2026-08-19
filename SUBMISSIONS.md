@@ -5,7 +5,26 @@ format rules, because a PR that breaks the linter gets closed without a read.
 
 ---
 
-## 0. BLOCKER: publish first
+## 0. TWO BLOCKERS — both must clear BEFORE any submission
+
+### 0a. The GitHub repo does not exist
+
+Every listing below links to `github.com/CompoundPulse/proof-mcp`. It currently
+returns **404** (verified). Submitting with a dead link means the PRs get closed
+unread and we burn the one first impression with exactly the audience we want.
+
+The package is staged and committed locally — it needs a remote and a push:
+
+```bash
+cd ~/Desktop/proof-mcp
+gh repo create CompoundPulse/proof-mcp --public --source=. --remote=origin --push
+# or create it in the GitHub UI, then:
+#   git remote add origin git@github.com:CompoundPulse/proof-mcp.git && git push -u origin main
+```
+
+Verify before moving on: `curl -sI https://github.com/CompoundPulse/proof-mcp | head -1` → 200.
+
+### 0b. Publish to npm
 
 ```bash
 npm login          # I cannot do this — it is a credential entry
