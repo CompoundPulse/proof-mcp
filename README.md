@@ -6,7 +6,7 @@ against it, and the price that proves it wrong.
 **Free. No API key. No account.**
 
 ```bash
-npx @compoundpulse/proof-mcp
+npx proof-mcp
 ```
 
 ## Claude Desktop / Cursor / Cline
@@ -16,7 +16,7 @@ npx @compoundpulse/proof-mcp
   "mcpServers": {
     "proof": {
       "command": "npx",
-      "args": ["-y", "@compoundpulse/proof-mcp"]
+      "args": ["-y", "proof-mcp"]
     }
   }
 }

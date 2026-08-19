@@ -37,7 +37,7 @@ restricted, and a restricted package makes every `npx` in every listing below
 fail. Verify before submitting anything:
 
 ```bash
-npx -y @compoundpulse/proof-mcp   # should start and wait on stdin
+npx -y proof-mcp   # should start and wait on stdin
 ```
 
 **Do not submit a single listing until that command works for a stranger.** A
@@ -123,7 +123,7 @@ Being listed is not being used. The measurable signal is requests to
 `/api/proof/*` with a `User-Agent` that is not a browser. In Vercel logs, that
 is agents and bots calling it. Watch for:
 
-- `@compoundpulse/proof-mcp/0.1.0` — our own MCP server, i.e. real installs
+- `proof-mcp/0.1.0` — our own MCP server, i.e. real installs
 - `python-requests`, `axios`, `node-fetch`, `curl` — someone building on it
 - `GPTBot`, `PerplexityBot`, `ClaudeBot`, `CCBot` — answer engines crawling
 
