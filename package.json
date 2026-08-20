@@ -14,14 +14,26 @@
   ],
   "keywords": [
     "mcp",
+    "mcp-server",
+    "model-context-protocol",
     "modelcontextprotocol",
+    "ai",
+    "llm",
+    "claude",
+    "agent",
+    "tool",
     "stocks",
+    "stock",
     "trading",
     "finance",
+    "investing",
     "etf",
     "crypto",
     "ticker",
-    "analysis"
+    "analysis",
+    "market-data",
+    "second-opinion",
+    "due-diligence"
   ],
   "engines": {
     "node": ">=18"
