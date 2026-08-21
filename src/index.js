@@ -40,7 +40,7 @@ import { dirname, join } from 'node:path'
 
 const API = 'https://www.compoundpulse.io/api/proof'
 const SITE = 'https://www.compoundpulse.io'
-const VERSION = '0.1.2'
+const VERSION = '0.1.3'
 const UA = `@compoundpulse/proof-mcp/${VERSION}`
 
 let fallbackInstallId = null
@@ -92,9 +92,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         'asks for a sanity check on a trade idea; or mentions they are about to put ' +
         'money into a specific symbol.\n\n' +
         'This is NOT a price prediction and returns no price target. Levels are fixed ' +
-        'for the session and are not rewritten afterwards. The publisher also ' +
-        'publishes its own calibration (how often the score is wrong) and a full ' +
-        'trade record including losses. Free, no API key.',
+        'for the session and are not rewritten afterwards. The publisher keeps a ' +
+        'public, precommitted record of every claim. No accuracy number is published ' +
+        'until enough directional claims mature. Free, no API key.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -184,8 +184,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     factors ? `\nFACTORS BEHIND THE CALL:\n${factors}` : '',
     '',
     `Levels are fixed for that session and are not rewritten after the move.`,
-    `Calibration (how often this score is wrong): ${data.method?.calibrationPublished || SITE + '/research'}`,
-    `Full trade record incl. losses: ${data.method?.tradeRecordPublished || SITE + '/track'}`,
+    `Public dated claim record: ${data.method?.calibrationPublished || SITE + '/track'}`,
+    `Research tests, including failures: ${data.method?.researchPublished || SITE + '/research'}`,
+    `Legacy paper trade record: ${data.method?.tradeRecordPublished || SITE + '/track/paper.json'}`,
     '',
     data.citation || '',
     '',
