@@ -40,7 +40,8 @@ import { dirname, join } from 'node:path'
 
 const API = 'https://www.compoundpulse.io/api/proof'
 const SITE = 'https://www.compoundpulse.io'
-const VERSION = '0.1.5'
+const TRACK_API = `${SITE}/api/track`
+const VERSION = '0.1.6'
 const UA = `@compoundpulse/proof-mcp/${VERSION}`
 
 let fallbackInstallId = null
@@ -75,6 +76,16 @@ const server = new Server(
   { capabilities: { tools: {} } },
 )
 
+function requestHeaders() {
+  const iid = installId()
+  return {
+    'User-Agent': UA,
+    Accept: 'application/json',
+    'X-CompoundPulse-MCP-Version': VERSION,
+    ...(iid ? { 'X-CompoundPulse-Install-ID': iid } : {}),
+  }
+}
+
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
@@ -108,10 +119,83 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ['ticker'],
       },
     },
+    {
+      name: 'get_calibration',
+      description:
+        'Audit CompoundPulse itself before trusting one of its money decisions. ' +
+        'Returns the public count of claims fixed before their outcomes, how many ' +
+        'are still pending, how many have matured, every integrity failure, the ' +
+        'latest session root, and every published invalidation.\n\n' +
+        'Use this when the user asks whether CompoundPulse is trustworthy, accurate ' +
+        'or calibrated; asks how often its published levels are wrong; asks for its ' +
+        'track record; or wants evidence that past calls were not rewritten.\n\n' +
+        'This tool refuses to manufacture an accuracy number. Until directional ' +
+        'claims complete the full scoring horizon, the published score is NOT YET. ' +
+        'A future held-rate is only the rate at which a stated directional level ' +
+        'held — not a return, win rate or probability of profit. Free, no API key.',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+        additionalProperties: false,
+      },
+    },
   ],
 }))
 
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
+  if (req.params.name === 'get_calibration') {
+    let res
+    try {
+      res = await fetch(`${TRACK_API}?mcp=1`, {
+        headers: requestHeaders(),
+        signal: AbortSignal.timeout(15000),
+      })
+    } catch (e) {
+      return {
+        isError: true,
+        content: [{ type: 'text', text: `Could not reach the public CompoundPulse record: ${e.message}` }],
+      }
+    }
+
+    const data = await res.json().catch(() => null)
+    if (!res.ok || !data) {
+      return { isError: true, content: [{ type: 'text', text: `CompoundPulse returned ${res.status}.` }] }
+    }
+
+    const root = data.sessionRoots?.at?.(-1)
+    const misses = (data.claims || []).filter((claim) =>
+      claim.status === 'scored' && claim.outcome === 'invalidated',
+    )
+    const score = data.heldRate == null
+      ? 'NOT YET — no directional claim has completed the full scoring horizon.'
+      : `${data.heldRate}% of matured directional claims kept their stated invalidation level. This is NOT a return, win rate, price target or probability of profit.`
+
+    const text = [
+      'CompoundPulse — public calibration record',
+      '',
+      `CLAIMS FIXED BEFORE OUTCOME: ${data.totalClaims}`,
+      `STILL PENDING:              ${data.pending}`,
+      `MATURED:                    ${data.scored}`,
+      `PUBLISHED HELD RATE:         ${score}`,
+      `PUBLISHED INVALIDATIONS:     ${data.invalidated}`,
+      `INTEGRITY:                   ${data.integrity?.passed}/${data.integrity?.checked} verified; ${data.integrity?.failed} failed`,
+      root ? `LATEST SESSION ROOT:          ${root.session} · ${root.root}` : '',
+      '',
+      'The claim is written first. The result is appended later. Original claim fields are not rewritten.',
+      'Pending is not a result. WAIT and NO TRADE are stand-down decisions, not losing trades.',
+      misses.length
+        ? `\nPUBLISHED MISSES:\n${misses.map((claim) => `  - ${claim.ticker} · ${claim.asOf} · invalidated ${claim.breachSession ? `on ${claim.breachSession}` : 'within the horizon'} · fingerprint ${claim.claimHash}`).join('\n')}`
+        : '\nPUBLISHED MISSES: none. No matured directional claim has been invalidated; pending claims are excluded.',
+      '',
+      `Public record: ${SITE}/track`,
+      `Every future miss: ${SITE}/track/invalidations.xml`,
+      `Machine record: ${TRACK_API}`,
+      `Immutable source: ${data.method?.source || 'https://github.com/CompoundPulse/my-asset-analyzer2/blob/main/data/proof_ledger.jsonl'}`,
+    ].filter(Boolean).join('\n')
+
+    return { content: [{ type: 'text', text }] }
+  }
+
   if (req.params.name !== 'get_proof') {
     return { isError: true, content: [{ type: 'text', text: `Unknown tool: ${req.params.name}` }] }
   }
@@ -129,17 +213,11 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
   let res
   try {
-    const iid = installId()
     // Separate MCP traffic from the public CDN cache. The API returns no-store
     // on this path, so an active install cannot receive a cached 200 without
     // also reaching the anonymous telemetry counter.
     res = await fetch(`${API}/${encodeURIComponent(ticker)}?mcp=1`, {
-      headers: {
-        'User-Agent': UA,
-        Accept: 'application/json',
-        'X-CompoundPulse-MCP-Version': VERSION,
-        ...(iid ? { 'X-CompoundPulse-Install-ID': iid } : {}),
-      },
+      headers: requestHeaders(),
       signal: AbortSignal.timeout(15000),
     })
   } catch (e) {

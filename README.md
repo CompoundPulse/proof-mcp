@@ -22,7 +22,7 @@ npx proof-mcp
 }
 ```
 
-## The tool
+## The tools
 
 `get_proof(ticker)` returns, for a US stock, major ETF or major crypto pair:
 
@@ -46,6 +46,14 @@ of its own range.
 PROVES IT WRONG:      $190.01
 TURNS CONSTRUCTIVE:   $227.49
 ```
+
+`get_calibration()` audits CompoundPulse itself. It returns the number of claims
+fixed before their outcomes, pending and matured counts, claim-hash integrity,
+the latest session root, and every published invalidation. It deliberately says
+**NOT YET** instead of inventing an accuracy number while claims are still
+pending.
+
+Public misses feed: <https://www.compoundpulse.io/track/invalidations.xml>
 
 ## What it is not
 
