@@ -15,8 +15,10 @@
  * DESIGN NOTES
  * - NO API KEY. Deliberate: every finance tool in this space gates on signup,
  *   which is exactly why none of them get installed casually.
- * - Zero state, zero telemetry. The server is a thin, auditable proxy to a
- *   public endpoint; anyone can read this file and see there is no phone-home.
+ * - One anonymous local install ID. It lets CompoundPulse distinguish 125
+ *   calls from one active install from one call by 125 active installs. It is
+ *   random, contains no PII, is sent only to the CompoundPulse endpoint, and
+ *   can be disabled with COMPOUNDPULSE_TELEMETRY=off.
  * - The tool description is written for a MODEL to route on, not a human to
  *   browse. It names the situations where it should fire, because an agent
  *   picks tools by matching intent against this text.
@@ -31,13 +33,45 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
+import { randomUUID } from 'node:crypto'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { dirname, join } from 'node:path'
 
 const API = 'https://www.compoundpulse.io/api/proof'
 const SITE = 'https://www.compoundpulse.io'
-const UA = '@compoundpulse/proof-mcp/0.1.0'
+const VERSION = '0.1.2'
+const UA = `@compoundpulse/proof-mcp/${VERSION}`
+
+let fallbackInstallId = null
+function installId() {
+  if (String(process.env.COMPOUNDPULSE_TELEMETRY || '').toLowerCase() === 'off') return null
+  const file = process.env.COMPOUNDPULSE_INSTALL_ID_FILE ||
+    join(homedir(), '.compoundpulse', 'proof-mcp-install-id')
+  try {
+    const held = readFileSync(file, 'utf8').trim()
+    if (/^[0-9a-f-]{36}$/i.test(held)) return held
+  } catch { /* first run */ }
+  const id = randomUUID()
+  try {
+    mkdirSync(dirname(file), { recursive: true, mode: 0o700 })
+    writeFileSync(file, `${id}\n`, { mode: 0o600, flag: 'wx' })
+    return id
+  } catch {
+    // Another process may have won the first-run race. Read once more; if the
+    // filesystem is read-only, a process-lifetime ID still prevents one busy
+    // session from masquerading as many installs.
+    try {
+      const held = readFileSync(file, 'utf8').trim()
+      if (/^[0-9a-f-]{36}$/i.test(held)) return held
+    } catch { /* read-only host */ }
+    fallbackInstallId ||= id
+    return fallbackInstallId
+  }
+}
 
 const server = new Server(
-  { name: 'compoundpulse-proof', version: '0.1.0' },
+  { name: 'compoundpulse-proof', version: VERSION },
   { capabilities: { tools: {} } },
 )
 
@@ -95,8 +129,14 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
   let res
   try {
+    const iid = installId()
     res = await fetch(`${API}/${encodeURIComponent(ticker)}`, {
-      headers: { 'User-Agent': UA, Accept: 'application/json' },
+      headers: {
+        'User-Agent': UA,
+        Accept: 'application/json',
+        'X-CompoundPulse-MCP-Version': VERSION,
+        ...(iid ? { 'X-CompoundPulse-Install-ID': iid } : {}),
+      },
       signal: AbortSignal.timeout(15000),
     })
   } catch (e) {

@@ -58,9 +58,10 @@ and here's why", never a bearish read by accident.
 
 ## Why you can check it
 
-- **We publish how often we're wrong** — calibration, including the failures:
+- **Every call is recorded before the outcome** — pending claims stay out of
+  every score: <https://www.compoundpulse.io/track>
+- **Every strategy test, including the failures** —
   <https://www.compoundpulse.io/research>
-- **Full trade record, losers included** — <https://www.compoundpulse.io/track>
 - **Levels are fixed for the session** and are not rewritten after the move, so
   any past call can be checked against what actually happened.
 
@@ -69,8 +70,20 @@ opinion with a decimal point.
 
 ## Privacy
 
-Zero state, zero telemetry. This server is a thin proxy to a public endpoint —
-`src/index.js` is ~150 lines and there is no phone-home in it. Read it.
+The server creates one random install identifier in
+`~/.compoundpulse/proof-mcp-install-id`. It contains no name, email, account or
+device data. CompoundPulse hashes it before logging, so we can distinguish one
+active install making 125 calls from 125 active installs making one call. The
+raw identifier is never logged.
+
+Disable it at any time:
+
+```bash
+COMPOUNDPULSE_TELEMETRY=off npx -y proof-mcp
+```
+
+The public REST endpoint is the only service it contacts. Read `src/index.js`;
+the complete behavior is visible there.
 
 The underlying REST endpoint is public too, if you'd rather skip MCP:
 
