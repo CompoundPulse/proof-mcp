@@ -6,13 +6,19 @@
 # `two-factor auth: auth-and-writes`, which demands a TOTP code on every single
 # publish from a laptop. A tag push has no authenticator app to read from.
 #
-# ONE-TIME SETUP (browser, ~30 seconds):
-#   npmjs.com -> proof-mcp -> Settings -> Trusted Publisher -> GitHub Actions
+# You do NOT need to weaken 2FA for this. npm's own guidance is the opposite:
+# "Require two-factor authentication and disallow tokens" forbids long-lived
+# tokens so publish authority flows ONLY through CI's OIDC. Leave the
+# "Require two-factor authentication for write actions" box CHECKED.
+#
+# ONE-TIME SETUP (browser — your security key works fine here, no 6-digit code):
+#   npmjs.com/package/proof-mcp/access  ->  Trusted Publisher  ->  GitHub Actions
 #     Organization or user : CompoundPulse
 #     Repository           : proof-mcp
 #     Workflow filename    : publish.yml
+#     Environment          : (leave blank)
 #
-# Then to ship any future version:
+# Then to ship any version, now and forever:
 #   npm version patch && git push --follow-tags
 name: publish
 
@@ -32,8 +38,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # Trusted publishing REQUIRES Node >=22.14.0 and npm >=11.5.1.
+          # Node 20 (the usual default) silently lacks OIDC support and the
+          # publish fails with ENEEDAUTH, which reads like a credentials
+          # problem rather than a runtime-version one.
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
-      # npm >=11.5.1 is what understands OIDC trusted publishing.
       - run: npm install -g npm@latest
+      - run: node -v && npm -v          # proof the OIDC-capable versions are in use
       - run: npm publish --access public
