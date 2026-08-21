@@ -40,7 +40,7 @@ import { dirname, join } from 'node:path'
 
 const API = 'https://www.compoundpulse.io/api/proof'
 const SITE = 'https://www.compoundpulse.io'
-const VERSION = '0.1.3'
+const VERSION = '0.1.4'
 const UA = `@compoundpulse/proof-mcp/${VERSION}`
 
 let fallbackInstallId = null
@@ -130,7 +130,10 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   let res
   try {
     const iid = installId()
-    res = await fetch(`${API}/${encodeURIComponent(ticker)}`, {
+    // Separate MCP traffic from the public CDN cache. The API returns no-store
+    // on this path, so an active install cannot receive a cached 200 without
+    // also reaching the anonymous telemetry counter.
+    res = await fetch(`${API}/${encodeURIComponent(ticker)}?mcp=1`, {
       headers: {
         'User-Agent': UA,
         Accept: 'application/json',
@@ -186,7 +189,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     `Levels are fixed for that session and are not rewritten after the move.`,
     `Public dated claim record: ${data.method?.calibrationPublished || SITE + '/track'}`,
     `Research tests, including failures: ${data.method?.researchPublished || SITE + '/research'}`,
-    `Legacy paper trade record: ${data.method?.tradeRecordPublished || SITE + '/track/paper.json'}`,
+    `Legacy paper trade record: ${data.method?.legacyPaperRecordPublished || SITE + '/track/paper.json'}`,
     '',
     data.citation || '',
     '',
