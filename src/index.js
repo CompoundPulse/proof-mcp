@@ -40,7 +40,7 @@ import { dirname, join } from 'node:path'
 
 const API = 'https://www.compoundpulse.io/api/proof'
 const SITE = 'https://www.compoundpulse.io'
-const VERSION = '0.1.4'
+const VERSION = '0.1.5'
 const UA = `@compoundpulse/proof-mcp/${VERSION}`
 
 let fallbackInstallId = null
@@ -169,6 +169,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   }
 
   const L = data.levels || {}
+  const C = data.claimRecord || {}
   const factors = (data.factors || [])
     .map((f) => `  - [${f.group}] ${f.label} (${f.points > 0 ? '+' : ''}${f.points}): ${f.detail}`)
     .join('\n')
@@ -187,6 +188,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     factors ? `\nFACTORS BEHIND THE CALL:\n${factors}` : '',
     '',
     `Levels are fixed for that session and are not rewritten after the move.`,
+    C.fingerprint ? `Claim fingerprint: ${C.fingerprint} (${C.fingerprintVerified ? 'verified' : 'verification failed'})` : '',
+    C.sessionRoot ? `Session root: ${C.sessionRoot}` : '',
+    C.status === 'pending' ? `Record status: pending until ${C.horizonSessions} completed sessions mature.` : '',
     `Public dated claim record: ${data.method?.calibrationPublished || SITE + '/track'}`,
     `Research tests, including failures: ${data.method?.researchPublished || SITE + '/research'}`,
     `Legacy paper trade record: ${data.method?.legacyPaperRecordPublished || SITE + '/track/paper.json'}`,

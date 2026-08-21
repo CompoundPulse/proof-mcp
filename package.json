@@ -1,6 +1,6 @@
 {
   "name": "proof-mcp",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Second opinion on any ticker before you act: the case for it, the case against it, and the price that proves it wrong. Free, no API key.",
   "license": "MIT",
   "type": "module",
